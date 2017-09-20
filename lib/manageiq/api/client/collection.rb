@@ -37,19 +37,28 @@ module ManageIQ
           end
         end
 
-        def get(options = {})
-          options[:expand] = (String(options[:expand]).split(",") | %w(resources)).join(",")
-          options[:filter] = Array(options[:filter]) if options[:filter].is_a?(String)
-          result_hash = client.get(name, options)
-          fetch_actions(result_hash)
+        def get(api_options = {})
+          api_options[:expand] = (String(api_options[:expand]).split(",") | %w(resources)).join(",")
+          api_options[:filter] = Array(api_options[:filter]) if api_options[:filter].is_a?(String)
+
           klass = ManageIQ::API::Client::Resource.subclass(name)
-          result_hash["resources"].collect do |resource_hash|
-            klass.new(self, resource_hash)
+          if options.configuration["options"].include?("hide_collection") && api_options[:identifier]
+            Array(klass.new(self, client.get("#{name}/#{api_options[:identifier]}", api_options)))
+          else
+            result_hash = client.get(name, api_options)
+            fetch_actions(result_hash)
+            Array(result_hash["resources"]).collect do |resource_hash|
+              klass.new(self, resource_hash)
+            end.tap { |r| puts "TAPPING: #{r}" }
           end
         end
 
         def options
           @collection_options ||= CollectionOptions.new(client.options(name))
+        end
+
+        def resource_identifier
+          options.configuration["resource_identifier"] || "id"
         end
 
         private

@@ -11,12 +11,12 @@ module QueryableMixin
     when 0
       raise "Couldn't find resource without an 'id'"
     when 1
-      res = limit(1).where(:id => args[0]).to_a
-      raise "Couldn't find resource with 'id' #{args}" if res.blank?
+      res = limit(1).where(resource_identifier => args[0]).to_a
+      raise "Couldn't find resource with '#{resource_identifier}' #{args}" if res.blank?
       request_array ? res : res.first
     else
       raise "Multiple resource find is not supported" unless respond_to?(:query)
-      query(args.collect { |id| { "id" => id } })
+      query(args.collect { |id| { resource_identifier => id } })
     end
   end
 
@@ -41,20 +41,28 @@ module QueryableMixin
 
   private
 
-  def parameters_from_query_relation(options)
+  def parameters_from_query_relation(query_options)
     api_params = {}
-    [:offset, :limit].each { |opt| api_params[opt] = options[opt] if options[opt] }
-    api_params[:attributes] = options[:select].join(",") if options[:select].present?
-    if options[:where]
-      api_params[:filter] ||= []
-      api_params[:filter] += filters_from_query_relation("=", options[:where])
+    [:offset, :limit].each { |opt| api_params[opt] = query_options[opt] if query_options[opt] }
+    api_params[:attributes] = query_options[:select].join(",") if query_options[:select].present?
+    if query_options[:where]
+      if options.configuration["options"].include?("hide_collection")
+        query_options[:where].each do |attr, value|
+          if attr.to_sym == resource_identifier.to_sym
+            api_params[:identifier] = value
+          end
+        end
+      else
+        api_params[:filter] ||= []
+        api_params[:filter] += filters_from_query_relation("=", query_options[:where])
+      end
     end
-    if options[:not]
+    if query_options[:not]
       api_params[:filter] ||= []
-      api_params[:filter] += filters_from_query_relation("!=", options[:not])
+      api_params[:filter] += filters_from_query_relation("!=", query_options[:not])
     end
-    if options[:order]
-      order_parameters_from_query_relation(options[:order]).each { |param, value| api_params[param] = value }
+    if query_options[:order]
+      order_parameters_from_query_relation(query_options[:order]).each { |param, value| api_params[param] = value }
     end
     api_params
   end

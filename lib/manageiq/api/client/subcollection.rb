@@ -47,6 +47,10 @@ module ManageIQ
           end
         end
 
+        def resource_identifier
+          "id"
+        end
+
         private
 
         def method_missing(sym, *args, &block)
